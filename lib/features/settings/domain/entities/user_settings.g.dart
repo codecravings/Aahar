@@ -1,7 +1,10 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
-// Run: flutter pub run build_runner build
 
 part of 'user_settings.dart';
+
+// **************************************************************************
+// TypeAdapterGenerator
+// **************************************************************************
 
 class UserSettingsAdapter extends TypeAdapter<UserSettings> {
   @override

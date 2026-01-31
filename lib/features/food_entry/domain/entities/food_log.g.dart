@@ -1,7 +1,10 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
-// Run: flutter pub run build_runner build
 
 part of 'food_log.dart';
+
+// **************************************************************************
+// TypeAdapterGenerator
+// **************************************************************************
 
 class FoodLogAdapter extends TypeAdapter<FoodLog> {
   @override

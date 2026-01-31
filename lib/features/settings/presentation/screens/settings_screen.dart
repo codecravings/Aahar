@@ -269,9 +269,9 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _AIModelSelector extends StatelessWidget {
-  final GeminiModel selectedModel;
-  final List<GeminiModel> availableModels;
-  final ValueChanged<GeminiModel> onModelChanged;
+  final AIModel selectedModel;
+  final List<AIModel> availableModels;
+  final ValueChanged<AIModel> onModelChanged;
 
   const _AIModelSelector({
     required this.selectedModel,
@@ -306,7 +306,7 @@ class _AIModelSelector extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Gemini Model',
+                      'AI Model',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
                     Text(
@@ -336,7 +336,7 @@ class _AIModelSelector extends StatelessWidget {
 }
 
 class _ModelOption extends StatelessWidget {
-  final GeminiModel model;
+  final AIModel model;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -413,7 +413,7 @@ class _ModelOption extends StatelessWidget {
                 ],
               ),
             ),
-            if (model == GeminiModel.flash)
+            if (model == AIModel.flash)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -427,7 +427,7 @@ class _ModelOption extends StatelessWidget {
                       ),
                 ),
               ),
-            if (model == GeminiModel.pro)
+            if (model == AIModel.pro)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -438,6 +438,20 @@ class _ModelOption extends StatelessWidget {
                   'Accurate',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: AppTheme.neonPurple,
+                      ),
+                ),
+              ),
+            if (model == AIModel.gpt5Mini)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10A37F).withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  'OpenAI',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: const Color(0xFF10A37F),
                       ),
                 ),
               ),

@@ -3,10 +3,16 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../services/database/database_service.dart';
 import '../../domain/entities/food_log.dart';
+import '../../domain/entities/custom_quick_add.dart';
 
 /// Provider for food log repository
 final foodLogRepositoryProvider = Provider<FoodLogRepository>((ref) {
   return FoodLogRepository();
+});
+
+/// Provider for custom quick add repository
+final customQuickAddRepositoryProvider = Provider<CustomQuickAddRepository>((ref) {
+  return CustomQuickAddRepository();
 });
 
 /// Provider for today's food logs
@@ -138,9 +144,58 @@ class TodaysMacros {
   bool get hasLogs => logCount > 0;
 }
 
-/// Provider for quick add options
+/// Provider for custom quick add options (user-created)
+final customQuickAddsProvider = StateNotifierProvider<CustomQuickAddsNotifier, List<CustomQuickAdd>>((ref) {
+  final repository = ref.watch(customQuickAddRepositoryProvider);
+  return CustomQuickAddsNotifier(repository);
+});
+
+/// State notifier for custom quick add options
+class CustomQuickAddsNotifier extends StateNotifier<List<CustomQuickAdd>> {
+  final CustomQuickAddRepository _repository;
+  final _uuid = const Uuid();
+
+  CustomQuickAddsNotifier(this._repository) : super([]) {
+    _loadCustomQuickAdds();
+  }
+
+  void _loadCustomQuickAdds() {
+    state = _repository.getAllCustomQuickAdds();
+  }
+
+  Future<void> addCustomQuickAdd({
+    required String name,
+    required String emoji,
+    required int calories,
+    required double protein,
+    required double carbs,
+    required double fat,
+  }) async {
+    final option = CustomQuickAdd(
+      id: _uuid.v4(),
+      name: name,
+      emoji: emoji,
+      calories: calories,
+      protein: protein,
+      carbs: carbs,
+      fat: fat,
+      createdAt: DateTime.now(),
+    );
+
+    await _repository.addCustomQuickAdd(option);
+    _loadCustomQuickAdds();
+  }
+
+  Future<void> deleteCustomQuickAdd(String id) async {
+    await _repository.deleteCustomQuickAdd(id);
+    _loadCustomQuickAdds();
+  }
+}
+
+/// Provider for all quick add options (built-in + custom)
 final quickAddOptionsProvider = Provider<List<QuickAddOption>>((ref) {
-  return const [
+  // Built-in options
+  final builtIn = const [
     QuickAddOption(
       name: 'Ande (2 boiled)',
       emoji: '🥚',
@@ -230,6 +285,22 @@ final quickAddOptionsProvider = Provider<List<QuickAddOption>>((ref) {
       fat: 16,
     ),
   ];
+
+  // Custom user-created options
+  final custom = ref.watch(customQuickAddsProvider);
+  final customOptions = custom.map((c) => QuickAddOption(
+        name: c.name,
+        emoji: c.emoji,
+        calories: c.calories,
+        protein: c.protein,
+        carbs: c.carbs,
+        fat: c.fat,
+        isCustom: true,
+        customId: c.id,
+      )).toList();
+
+  // Merge: custom first, then built-in
+  return [...customOptions, ...builtIn];
 });
 
 /// Quick add preset option
@@ -240,6 +311,8 @@ class QuickAddOption {
   final double protein;
   final double carbs;
   final double fat;
+  final bool isCustom;
+  final String? customId;
 
   const QuickAddOption({
     required this.name,
@@ -248,5 +321,7 @@ class QuickAddOption {
     required this.protein,
     required this.carbs,
     required this.fat,
+    this.isCustom = false,
+    this.customId,
   });
 }

@@ -55,7 +55,7 @@ class UserSettings extends Equatable {
   });
 
   /// Get the selected Gemini model
-  GeminiModel get selectedModel => GeminiModel.fromId(selectedModelId);
+  AIModel get selectedModel => AIModel.fromId(selectedModelId);
 
   UserSettings copyWith({
     int? calorieTarget,

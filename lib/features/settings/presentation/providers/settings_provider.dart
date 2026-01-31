@@ -59,7 +59,7 @@ class SettingsNotifier extends StateNotifier<UserSettings> {
     );
   }
 
-  Future<void> updateSelectedModel(GeminiModel model) async {
+  Future<void> updateSelectedModel(AIModel model) async {
     state = await _repository.updateSettings(selectedModelId: model.modelId);
   }
 
@@ -85,7 +85,7 @@ class SettingsNotifier extends StateNotifier<UserSettings> {
 }
 
 /// Provider for selected AI model
-final selectedModelProvider = Provider<GeminiModel>((ref) {
+final selectedModelProvider = Provider<AIModel>((ref) {
   final settings = ref.watch(settingsProvider);
   return settings.selectedModel;
 });
@@ -97,6 +97,6 @@ final aiServiceProvider = Provider<AIService>((ref) {
 });
 
 /// Provider for available AI models
-final availableModelsProvider = Provider<List<GeminiModel>>((ref) {
-  return GeminiModel.values.toList();
+final availableModelsProvider = Provider<List<AIModel>>((ref) {
+  return AIModel.values.toList();
 });

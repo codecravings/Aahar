@@ -15,6 +15,10 @@ class AppConstants {
   static String get geminiApiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
   static const String geminiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta';
 
+  // OpenAI API - loaded from .env
+  static String get openaiApiKey => dotenv.env['OPENAI_API_KEY'] ?? '';
+  static const String openaiBaseUrl = 'https://api.openai.com/v1';
+
   // Default Macro Targets
   static const int defaultCalorieTarget = 2000;
   static const int defaultProteinTarget = 150;
@@ -38,24 +42,30 @@ class AppConstants {
   static const String streaksBox = 'streaks';
   static const String achievementsBox = 'achievements';
   static const String userBox = 'user';
+  static const String customQuickAddBox = 'custom_quick_add';
 }
 
+/// AI Provider types
+enum AIProvider { gemini, openai }
+
 /// AI Model configurations
-enum GeminiModel {
-  flash('gemini-2.0-flash', 'Gemini 2.0 Flash', 'Fast & Efficient'),
-  pro('gemini-2.5-pro', 'Gemini 2.5 Pro', 'Most Accurate'),
-  flashLite('gemini-2.0-flash-lite', 'Gemini 2.0 Flash Lite', 'Fast & Cheap');
+enum AIModel {
+  flash('gemini-2.0-flash', 'Gemini 2.0 Flash', 'Fast & Efficient', AIProvider.gemini),
+  pro('gemini-2.5-pro', 'Gemini 2.5 Pro', 'Most Accurate', AIProvider.gemini),
+  flashLite('gemini-2.0-flash-lite', 'Gemini 2.0 Flash Lite', 'Fast & Cheap', AIProvider.gemini),
+  gpt5Mini('gpt-5-mini', 'GPT-5 Mini', 'OpenAI - Fast & Smart', AIProvider.openai);
 
   final String modelId;
   final String displayName;
   final String description;
+  final AIProvider provider;
 
-  const GeminiModel(this.modelId, this.displayName, this.description);
+  const AIModel(this.modelId, this.displayName, this.description, this.provider);
 
-  static GeminiModel fromId(String id) {
-    return GeminiModel.values.firstWhere(
+  static AIModel fromId(String id) {
+    return AIModel.values.firstWhere(
       (m) => m.modelId == id,
-      orElse: () => GeminiModel.flash,
+      orElse: () => AIModel.flash,
     );
   }
 }

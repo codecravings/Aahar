@@ -42,6 +42,7 @@ class _FoodEntryScreenState extends ConsumerState<FoodEntryScreen>
   MealType _selectedMealType = MealType.lunch;
   bool _isSubmitting = false;
   bool _showMoreNutrients = false;
+  bool _saveToQuickAdd = false;
   String? _selectedEmoji;
   String? _photoPath;
   bool get _isEditMode => widget.existingLog != null;
@@ -197,6 +198,10 @@ class _FoodEntryScreenState extends ConsumerState<FoodEntryScreen>
               onRemovePhoto: () {
                 setState(() => _photoPath = null);
               },
+              saveToQuickAdd: _saveToQuickAdd,
+              onToggleSaveToQuickAdd: () {
+                setState(() => _saveToQuickAdd = !_saveToQuickAdd);
+              },
               isEditMode: true,
             )
           : TabBarView(
@@ -245,6 +250,10 @@ class _FoodEntryScreenState extends ConsumerState<FoodEntryScreen>
                   onPickPhoto: _pickPhoto,
                   onRemovePhoto: () {
                     setState(() => _photoPath = null);
+                  },
+                  saveToQuickAdd: _saveToQuickAdd,
+                  onToggleSaveToQuickAdd: () {
+                    setState(() => _saveToQuickAdd = !_saveToQuickAdd);
                   },
                   isEditMode: false,
                 ),
@@ -352,6 +361,18 @@ class _FoodEntryScreenState extends ConsumerState<FoodEntryScreen>
         await ref
             .read(streakProvider.notifier)
             .recordLog(isPerfectDay: stats.isPerfectDay);
+
+        // Save to quick add if checkbox is enabled
+        if (_saveToQuickAdd && _nameController.text.isNotEmpty && _selectedEmoji != null) {
+          await ref.read(customQuickAddsProvider.notifier).addCustomQuickAdd(
+                name: _nameController.text,
+                emoji: _selectedEmoji!,
+                calories: int.parse(_caloriesController.text),
+                protein: double.parse(_proteinController.text),
+                carbs: double.parse(_carbsController.text),
+                fat: double.parse(_fatController.text),
+              );
+        }
       }
 
       if (mounted) {
@@ -527,6 +548,8 @@ class _ManualEntryTab extends StatelessWidget {
   final String? photoPath;
   final ValueChanged<ImageSource> onPickPhoto;
   final VoidCallback onRemovePhoto;
+  final bool saveToQuickAdd;
+  final VoidCallback onToggleSaveToQuickAdd;
   final bool isEditMode;
 
   const _ManualEntryTab({
@@ -554,6 +577,8 @@ class _ManualEntryTab extends StatelessWidget {
     required this.photoPath,
     required this.onPickPhoto,
     required this.onRemovePhoto,
+    required this.saveToQuickAdd,
+    required this.onToggleSaveToQuickAdd,
     required this.isEditMode,
   });
 
@@ -727,7 +752,48 @@ class _ManualEntryTab extends StatelessWidget {
             textCapitalization: TextCapitalization.sentences,
           ).animate().fadeIn(delay: 340.ms).slideX(begin: 0.05),
 
-          const SizedBox(height: 32),
+          const SizedBox(height: 16),
+
+          // Save to Quick Add checkbox (only show when not editing)
+          if (!isEditMode)
+            GestureDetector(
+              onTap: onToggleSaveToQuickAdd,
+              child: GlassCard(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: saveToQuickAdd,
+                      onChanged: (_) => onToggleSaveToQuickAdd(),
+                      activeColor: AppTheme.neonGreen,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Save to Quick Add',
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Add this food to your quick add list for easy reuse',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                  color: AppTheme.textSecondary,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ).animate().fadeIn(delay: 350.ms).slideY(begin: 0.05),
+
+          if (!isEditMode) const SizedBox(height: 16),
+
+          const SizedBox(height: 16),
 
           // Submit button
           SizedBox(

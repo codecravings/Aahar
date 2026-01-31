@@ -1,6 +1,7 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../core/constants/app_constants.dart';
 import '../../features/food_entry/domain/entities/food_log.dart';
+import '../../features/food_entry/domain/entities/custom_quick_add.dart';
 import '../../features/settings/domain/entities/user_settings.dart';
 import '../../features/streaks/domain/entities/streak.dart';
 
@@ -23,12 +24,14 @@ class DatabaseService {
     Hive.registerAdapter(AchievementCategoryAdapter());
     Hive.registerAdapter(UserSettingsAdapter());
     Hive.registerAdapter(AccentColorAdapter());
+    Hive.registerAdapter(CustomQuickAddAdapter());
 
     // Open boxes
     await Hive.openBox<FoodLog>(AppConstants.foodLogsBox);
     await Hive.openBox<UserSettings>(AppConstants.settingsBox);
     await Hive.openBox<UserStreak>(AppConstants.streaksBox);
     await Hive.openBox<Achievement>(AppConstants.achievementsBox);
+    await Hive.openBox<CustomQuickAdd>(AppConstants.customQuickAddBox);
 
     _initialized = true;
   }
@@ -273,5 +276,36 @@ class AchievementRepository {
   /// Get achievements by category
   List<Achievement> getAchievementsByCategory(AchievementCategory category) {
     return _box.values.where((a) => a.category == category).toList();
+  }
+}
+
+/// Repository for custom quick add options
+class CustomQuickAddRepository {
+  Box<CustomQuickAdd> get _box => Hive.box<CustomQuickAdd>(AppConstants.customQuickAddBox);
+
+  /// Add a new custom quick add option
+  Future<void> addCustomQuickAdd(CustomQuickAdd option) async {
+    await _box.put(option.id, option);
+  }
+
+  /// Get all custom quick add options
+  List<CustomQuickAdd> getAllCustomQuickAdds() {
+    return _box.values.toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  /// Delete a custom quick add option
+  Future<void> deleteCustomQuickAdd(String id) async {
+    await _box.delete(id);
+  }
+
+  /// Update a custom quick add option
+  Future<void> updateCustomQuickAdd(CustomQuickAdd option) async {
+    await _box.put(option.id, option);
+  }
+
+  /// Get a custom quick add by ID
+  CustomQuickAdd? getCustomQuickAdd(String id) {
+    return _box.get(id);
   }
 }

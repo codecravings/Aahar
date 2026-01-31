@@ -5,24 +5,24 @@ import '../../core/constants/app_constants.dart';
 import '../../core/errors/failures.dart';
 import '../../core/errors/result.dart';
 import 'ai_service.dart';
-import 'openai_service.dart';
 
-/// Gemini API implementation of AIService
-class GeminiService implements AIService {
+/// OpenAI API implementation of AIService
+class OpenAIService implements AIService {
   final Dio _dio;
   final AIModel _model;
 
-  GeminiService({
+  OpenAIService({
     required AIModel model,
     Dio? dio,
   })  : _model = model,
         _dio = dio ?? Dio() {
     _dio.options = BaseOptions(
-      baseUrl: AppConstants.geminiBaseUrl,
+      baseUrl: AppConstants.openaiBaseUrl,
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 60),
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': 'Bearer ${AppConstants.openaiApiKey}',
       },
     );
   }
@@ -36,10 +36,7 @@ class GeminiService implements AIService {
   @override
   Future<bool> isAvailable() async {
     try {
-      final response = await _dio.get(
-        '/models/${_model.modelId}',
-        queryParameters: {'key': AppConstants.geminiApiKey},
-      );
+      final response = await _dio.get('/models/${_model.modelId}');
       return response.statusCode == 200;
     } catch (_) {
       return false;
@@ -57,73 +54,74 @@ class GeminiService implements AIService {
     String? userHint,
   }) async {
     try {
+      print('🤖 [OpenAI] Starting analysis with model: ${_model.modelId}');
+      print('🤖 [OpenAI] API Key present: ${AppConstants.openaiApiKey.isNotEmpty ? "Yes (${AppConstants.openaiApiKey.substring(0, 7)}...)" : "No"}');
+
       final base64Image = base64Encode(imageBytes);
       final prompt = _buildPrompt(userHint: userHint);
 
       final requestBody = {
-        'contents': [
+        'model': _model.modelId,
+        'messages': [
           {
-            'parts': [
+            'role': 'user',
+            'content': [
               {
+                'type': 'text',
                 'text': prompt,
               },
               {
-                'inline_data': {
-                  'mime_type': 'image/jpeg',
-                  'data': base64Image,
+                'type': 'image_url',
+                'image_url': {
+                  'url': 'data:image/jpeg;base64,$base64Image',
                 },
               },
             ],
           },
         ],
-        'generationConfig': {
-          'temperature': 0.1,
-          'topK': 32,
-          'topP': 1,
-          'maxOutputTokens': 1024,
-        },
-        'safetySettings': [
-          {
-            'category': 'HARM_CATEGORY_HARASSMENT',
-            'threshold': 'BLOCK_NONE',
-          },
-          {
-            'category': 'HARM_CATEGORY_HATE_SPEECH',
-            'threshold': 'BLOCK_NONE',
-          },
-          {
-            'category': 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-            'threshold': 'BLOCK_NONE',
-          },
-          {
-            'category': 'HARM_CATEGORY_DANGEROUS_CONTENT',
-            'threshold': 'BLOCK_NONE',
-          },
-        ],
+        'max_completion_tokens': 16000,
       };
 
+      print('🤖 [OpenAI] Request URL: ${AppConstants.openaiBaseUrl}/chat/completions');
+      print('🤖 [OpenAI] Image size: ${(base64Image.length / 1024).toStringAsFixed(2)} KB');
+      if (userHint != null && userHint.isNotEmpty) {
+        print('🤖 [OpenAI] User hint: $userHint');
+      }
+
       final response = await _dio.post(
-        '/models/${_model.modelId}:generateContent',
-        queryParameters: {'key': AppConstants.geminiApiKey},
+        '/chat/completions',
         data: requestBody,
       );
 
+      print('🤖 [OpenAI] Response status: ${response.statusCode}');
+
       if (response.statusCode != 200) {
+        print('❌ [OpenAI] Non-200 status code: ${response.statusCode}');
+        print('❌ [OpenAI] Response data: ${response.data}');
         return Result.failure(
           AIServiceFailure(
-            message: 'API returned status ${response.statusCode}',
+            message: 'API returned status ${response.statusCode}: ${response.data}',
           ),
         );
       }
 
+      print('✅ [OpenAI] Parsing response...');
       final result = _parseResponse(response.data);
       return result;
     } on DioException catch (e) {
       final statusCode = e.response?.statusCode;
+      print('❌ [OpenAI] DioException occurred');
+      print('❌ [OpenAI] Error type: ${e.type}');
+      print('❌ [OpenAI] Status code: $statusCode');
+      print('❌ [OpenAI] Error message: ${e.message}');
+      if (e.response?.data != null) {
+        print('❌ [OpenAI] Response data: ${e.response?.data}');
+      }
 
       if (e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout) {
         if (retriesLeft > 0) {
+          print('⏳ [OpenAI] Retrying after timeout...');
           await Future.delayed(const Duration(seconds: 2));
           return _analyzeFoodWithRetry(imageBytes, retriesLeft: retriesLeft - 1, userHint: userHint);
         }
@@ -134,21 +132,30 @@ class GeminiService implements AIService {
         );
       }
 
+      if (statusCode == 401) {
+        return Result.failure(
+          const AIServiceFailure(
+            message: 'Invalid OpenAI API key. Check your .env file and ensure OPENAI_API_KEY is set correctly.',
+          ),
+        );
+      }
+
       if (statusCode == 429) {
         if (retriesLeft > 0) {
+          print('⏳ [OpenAI] Rate limited, retrying...');
           await Future.delayed(const Duration(seconds: 3));
           return _analyzeFoodWithRetry(imageBytes, retriesLeft: retriesLeft - 1, userHint: userHint);
         }
-        final suggestion = _suggestAlternativeModel();
         return Result.failure(
           AIServiceFailure(
-            message: 'Rate limited on ${_model.displayName}. $suggestion',
+            message: 'Rate limited on ${_model.displayName}. Try switching to a Gemini model in Settings.',
           ),
         );
       }
 
       if (statusCode == 500 || statusCode == 503) {
         if (retriesLeft > 0) {
+          print('⏳ [OpenAI] Server error, retrying...');
           await Future.delayed(const Duration(seconds: 2));
           return _analyzeFoodWithRetry(imageBytes, retriesLeft: retriesLeft - 1, userHint: userHint);
         }
@@ -162,7 +169,7 @@ class GeminiService implements AIService {
       if (statusCode == 404) {
         return Result.failure(
           AIServiceFailure(
-            message: 'Model "${_model.displayName}" is not available. Try switching to a different model in Settings.',
+            message: 'Model "${_model.displayName}" (${_model.modelId}) is not available. Try switching to a different model in Settings.',
           ),
         );
       }
@@ -175,28 +182,19 @@ class GeminiService implements AIService {
         );
       }
 
+      // Generic error with actual error details
+      final errorDetail = e.response?.data?.toString() ?? e.message ?? 'Unknown error';
       return Result.failure(
-        const AIServiceFailure(
-          message: 'Something went wrong. Please try again.',
+        AIServiceFailure(
+          message: 'OpenAI API Error (${statusCode ?? 'unknown'}): $errorDetail',
         ),
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ [OpenAI] Unexpected error: $e');
+      print('❌ [OpenAI] Stack trace: $stackTrace');
       return Result.failure(
-        const AIServiceFailure(message: 'Analysis failed. Please try again.'),
+        AIServiceFailure(message: 'Analysis failed: ${e.toString()}'),
       );
-    }
-  }
-
-  String _suggestAlternativeModel() {
-    switch (_model) {
-      case AIModel.flash:
-        return 'Try switching to Flash Lite, Pro, or GPT-5 Mini in Settings.';
-      case AIModel.pro:
-        return 'Try switching to Flash, Flash Lite, or GPT-5 Mini in Settings.';
-      case AIModel.flashLite:
-        return 'Try switching to Flash, Pro, or GPT-5 Mini in Settings.';
-      default:
-        return 'Try switching to a different model in Settings.';
     }
   }
 
@@ -260,28 +258,31 @@ All macros should be realistic values. Protein, carbs, fat in grams.
 
   Result<FoodAnalysisResult> _parseResponse(Map<String, dynamic> responseData) {
     try {
-      // Navigate Gemini response structure
-      final candidates = responseData['candidates'] as List<dynamic>?;
-      if (candidates == null || candidates.isEmpty) {
+      print('🔍 [OpenAI] Parsing response data...');
+      print('🔍 [OpenAI] Full response: $responseData');
+
+      final choices = responseData['choices'] as List<dynamic>?;
+      if (choices == null || choices.isEmpty) {
+        print('❌ [OpenAI] No choices in response');
         return Result.failure(
           const ParseFailure(message: 'No response from AI model'),
         );
       }
 
-      final content = candidates[0]['content'] as Map<String, dynamic>?;
-      final parts = content?['parts'] as List<dynamic>?;
-      if (parts == null || parts.isEmpty) {
+      print('🔍 [OpenAI] Choices: $choices');
+      final message = choices[0]['message'] as Map<String, dynamic>?;
+      print('🔍 [OpenAI] Message: $message');
+
+      final text = message?['content'] as String?;
+      if (text == null || text.isEmpty) {
+        print('❌ [OpenAI] Empty content in response');
+        print('❌ [OpenAI] Message object was: $message');
         return Result.failure(
           const ParseFailure(message: 'Empty response from AI model'),
         );
       }
 
-      final text = parts[0]['text'] as String?;
-      if (text == null || text.isEmpty) {
-        return Result.failure(
-          const ParseFailure(message: 'No text in AI response'),
-        );
-      }
+      print('📝 [OpenAI] Raw response text: ${text.substring(0, text.length > 200 ? 200 : text.length)}...');
 
       // Extract JSON from response (handle markdown code blocks)
       String jsonStr = text.trim();
@@ -295,17 +296,21 @@ All macros should be realistic values. Protein, carbs, fat in grams.
       }
       jsonStr = jsonStr.trim();
 
+      print('📝 [OpenAI] Cleaned JSON: ${jsonStr.substring(0, jsonStr.length > 200 ? 200 : jsonStr.length)}...');
+
       final Map<String, dynamic> jsonData;
       try {
         jsonData = json.decode(jsonStr) as Map<String, dynamic>;
+        print('✅ [OpenAI] Successfully parsed JSON');
       } catch (e) {
+        print('❌ [OpenAI] JSON parse error: $e');
         return Result.failure(
           ParseFailure(message: 'Invalid JSON response: $e'),
         );
       }
 
-      // Check for error response
       if (jsonData.containsKey('error')) {
+        print('❌ [OpenAI] Error in JSON response: ${jsonData['error']}');
         return Result.failure(
           AIServiceFailure(
             message: jsonData['error'] as String? ?? 'Could not analyze food',
@@ -314,12 +319,15 @@ All macros should be realistic values. Protein, carbs, fat in grams.
       }
 
       final result = FoodAnalysisResult.fromJson(jsonData);
+      print('✅ [OpenAI] Parsed food: ${result.foodName}');
+      print('✅ [OpenAI] Macros: ${result.calories} cal, ${result.protein}g P, ${result.carbs}g C, ${result.fat}g F');
+      print('✅ [OpenAI] Confidence: ${(result.confidence * 100).toInt()}%');
 
-      // Validate result has reasonable values
       if (result.calories == 0 &&
           result.protein == 0 &&
           result.carbs == 0 &&
           result.fat == 0) {
+        print('❌ [OpenAI] All macros are zero - could not identify food');
         return Result.failure(
           const AIServiceFailure(
             message: 'Could not identify food in image',
@@ -328,26 +336,12 @@ All macros should be realistic values. Protein, carbs, fat in grams.
       }
 
       return Result.success(result);
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('❌ [OpenAI] Parse error: $e');
+      print('❌ [OpenAI] Stack trace: $stackTrace');
       return Result.failure(
         ParseFailure(message: 'Failed to parse response: $e'),
       );
     }
   }
-}
-
-/// Factory for creating AI service instances
-class AIServiceFactory {
-  static AIService create(AIModel model) {
-    switch (model.provider) {
-      case AIProvider.gemini:
-        return GeminiService(model: model);
-      case AIProvider.openai:
-        // Import handled via barrel or direct import
-        return OpenAIService(model: model);
-    }
-  }
-
-  static AIService createFlash() => create(AIModel.flash);
-  static AIService createPro() => create(AIModel.pro);
 }
