@@ -38,6 +38,7 @@ Yes it recognizes:
 * samosa
 * biryani
 * dal chawal
+* your Thali
 * your "light snack" that is absolutely not light
 
 And it responds emotionally.
@@ -148,7 +149,7 @@ Choose your fighter:
 * Pro → slow but scary accurate
 
 **OpenAI:**
-* GPT-5 Mini → reasoning model, thinks before responding
+* GPT-5 Mini → reasoning model, thinks before responding.
 
 Switch anytime in settings.
 
