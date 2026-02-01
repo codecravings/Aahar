@@ -10,19 +10,28 @@ import '../../../../core/widgets/progress_ring.dart';
 import '../../../food_entry/domain/entities/food_log.dart';
 import '../../../food_entry/presentation/providers/food_log_provider.dart';
 import '../../../food_entry/presentation/screens/food_entry_screen.dart';
+import '../../../history/presentation/screens/history_screen.dart';
 import '../../../streaks/presentation/providers/streak_provider.dart';
 import '../providers/dashboard_provider.dart';
 
-class DashboardScreen extends ConsumerWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  bool _yesterdayExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
     final stats = ref.watch(dailyStatsProvider);
     final streak = ref.watch(streakProvider);
     final motivation = ref.watch(motivationMessageProvider);
     final greeting = ref.watch(greetingProvider);
     final todaysLogs = ref.watch(todaysFoodLogsProvider);
+    final yesterdaysLogs = ref.watch(yesterdaysFoodLogsProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -150,11 +159,19 @@ class DashboardScreen extends ConsumerWidget {
                       "Today's Log",
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
-                    TextButton(
+                    IconButton(
                       onPressed: () {
-                        // Navigate to full log
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const HistoryScreen(),
+                          ),
+                        );
                       },
-                      child: const Text('See all'),
+                      icon: const Icon(
+                        PhosphorIcons.calendar_blank,
+                        color: AppTheme.textSecondary,
+                      ),
+                      tooltip: 'View History',
                     ),
                   ],
                 ).animate().fadeIn(delay: 700.ms),
@@ -224,13 +241,16 @@ class DashboardScreen extends ConsumerWidget {
                           },
                           child: _FoodLogTile(
                             log: log,
-                            onTap: () {
-                              Navigator.of(context).push(
+                            onTap: () async {
+                              await Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) =>
                                       FoodEntryScreen(existingLog: log),
                                 ),
                               );
+                              // Refresh both providers after editing
+                              ref.read(todaysFoodLogsProvider.notifier).refresh();
+                              ref.read(yesterdaysFoodLogsProvider.notifier).refresh();
                             },
                           ),
                         )
@@ -239,10 +259,142 @@ class DashboardScreen extends ConsumerWidget {
                             .slideX(begin: 0.05),
                       );
                     },
-                    childCount: todaysLogs.length.clamp(0, 5),
+                    childCount: todaysLogs.length,
                   ),
                 ),
               ),
+
+            // Yesterday's logs section (collapsible)
+            if (yesterdaysLogs.isNotEmpty) ...[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
+                  child: GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _yesterdayExpanded = !_yesterdayExpanded;
+                      });
+                    },
+                    child: Row(
+                      children: [
+                        AnimatedRotation(
+                          turns: _yesterdayExpanded ? 0.25 : 0,
+                          duration: const Duration(milliseconds: 200),
+                          child: const Icon(
+                            PhosphorIcons.caret_right,
+                            color: AppTheme.textSecondary,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Yesterday",
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                color: AppTheme.textSecondary,
+                              ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppTheme.surfaceLight,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '${yesterdaysLogs.length}',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                  color: AppTheme.textTertiary,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ).animate().fadeIn(delay: 800.ms),
+                ),
+              ),
+              if (_yesterdayExpanded)
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final log = yesterdaysLogs[index];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Dismissible(
+                            key: Key('yesterday_${log.id}'),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 20),
+                              decoration: BoxDecoration(
+                                color: AppTheme.error.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Icon(
+                                PhosphorIcons.trash,
+                                color: AppTheme.error,
+                              ),
+                            ),
+                            confirmDismiss: (direction) async {
+                              return await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  backgroundColor: AppTheme.surface,
+                                  title: const Text('Delete Entry'),
+                                  content: Text(
+                                    'Delete "${log.name ?? log.mealType.label}"?',
+                                  ),
+                                  actions: [
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(false),
+                                      child: const Text('Cancel'),
+                                    ),
+                                    TextButton(
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(true),
+                                      child: const Text(
+                                        'Delete',
+                                        style: TextStyle(color: AppTheme.error),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                            onDismissed: (_) {
+                              ref
+                                  .read(yesterdaysFoodLogsProvider.notifier)
+                                  .deleteFoodLog(log.id);
+                            },
+                            child: _FoodLogTile(
+                              log: log,
+                              onTap: () async {
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        FoodEntryScreen(existingLog: log),
+                                  ),
+                                );
+                                // Refresh both providers after editing
+                                ref.read(todaysFoodLogsProvider.notifier).refresh();
+                                ref.read(yesterdaysFoodLogsProvider.notifier).refresh();
+                              },
+                            ),
+                          ).animate().fadeIn(delay: (50 * index).ms).slideX(
+                                begin: 0.05,
+                              ),
+                        );
+                      },
+                      childCount: yesterdaysLogs.length,
+                    ),
+                  ),
+                ),
+            ],
 
             // Bottom padding
             const SliverToBoxAdapter(
