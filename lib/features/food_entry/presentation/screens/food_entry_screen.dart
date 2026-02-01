@@ -337,7 +337,13 @@ class _FoodEntryScreenState extends ConsumerState<FoodEntryScreen>
           notes: _notesController.text.isNotEmpty ? _notesController.text : null,
         );
 
-        await ref.read(todaysFoodLogsProvider.notifier).updateFoodLog(updated);
+        // Use repository directly so it works for ANY date, not just today
+        final repository = ref.read(foodLogRepositoryProvider);
+        await repository.updateFoodLog(updated);
+
+        // Refresh all date-related providers
+        ref.read(todaysFoodLogsProvider.notifier).refresh();
+        ref.read(yesterdaysFoodLogsProvider.notifier).refresh();
       } else {
         await ref.read(todaysFoodLogsProvider.notifier).addFoodLog(
               name: _nameController.text.isNotEmpty ? _nameController.text : null,
