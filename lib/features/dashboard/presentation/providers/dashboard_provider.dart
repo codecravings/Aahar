@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/utils/motivation_engine.dart';
-import '../../../../services/database/database_service.dart';
 import '../../../food_entry/presentation/providers/food_log_provider.dart';
 import '../../../settings/presentation/providers/settings_provider.dart';
 import '../../../streaks/presentation/providers/streak_provider.dart';
@@ -140,4 +139,148 @@ enum DashboardViewMode { today, weekly }
 /// Provider for dashboard view mode
 final dashboardViewModeProvider = StateProvider<DashboardViewMode>((ref) {
   return DashboardViewMode.today;
+});
+
+/// Analytics period enum
+enum AnalyticsPeriod { week, month, allTime }
+
+/// Provider for analytics period
+final analyticsPeriodProvider = StateProvider<AnalyticsPeriod>((ref) {
+  return AnalyticsPeriod.week;
+});
+
+/// Provider for monthly stats (last 30 days)
+final monthlyStatsProvider = Provider<MonthlyStats>((ref) {
+  final repository = ref.watch(foodLogRepositoryProvider);
+  final settings = ref.watch(settingsProvider);
+
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+
+  final dailyStatsList = <DailyStats>[];
+
+  for (var i = 0; i < 30; i++) {
+    final date = today.subtract(Duration(days: i));
+    final logs = repository.getFoodLogsForDate(date);
+    final macros = logs.fold<Map<String, num>>(
+      {'calories': 0, 'protein': 0.0, 'carbs': 0.0, 'fat': 0.0},
+      (acc, log) {
+        acc['calories'] = (acc['calories'] as int) + log.calories;
+        acc['protein'] = (acc['protein'] as double) + log.protein;
+        acc['carbs'] = (acc['carbs'] as double) + log.carbs;
+        acc['fat'] = (acc['fat'] as double) + log.fat;
+        return acc;
+      },
+    );
+
+    dailyStatsList.add(DailyStats(
+      date: date,
+      calories: macros['calories'] as int,
+      protein: macros['protein'] as double,
+      carbs: macros['carbs'] as double,
+      fat: macros['fat'] as double,
+      calorieTarget: settings.calorieTarget,
+      proteinTarget: settings.proteinTarget,
+      carbsTarget: settings.carbsTarget,
+      fatTarget: settings.fatTarget,
+      logCount: logs.length,
+    ));
+  }
+
+  // Reverse so oldest is first
+  return MonthlyStats.fromDailyStats(dailyStatsList.reversed.toList(), 30);
+});
+
+/// Provider for all-time stats
+final allTimeStatsProvider = Provider<AllTimeStats>((ref) {
+  final repository = ref.watch(foodLogRepositoryProvider);
+  final settings = ref.watch(settingsProvider);
+
+  final allLogs = repository.getAllFoodLogs();
+  if (allLogs.isEmpty) {
+    return AllTimeStats.empty();
+  }
+
+  // Group logs by date
+  final logsByDate = <DateTime, List<dynamic>>{};
+  for (final log in allLogs) {
+    final dateKey = DateTime(log.timestamp.year, log.timestamp.month, log.timestamp.day);
+    logsByDate.putIfAbsent(dateKey, () => []).add(log);
+  }
+
+  final totalLoggedDays = logsByDate.length;
+  final totalLogs = allLogs.length;
+
+  // Calculate per-day stats
+  var totalCalories = 0;
+  var totalProtein = 0.0;
+  var totalCarbs = 0.0;
+  var totalFat = 0.0;
+  var perfectDays = 0;
+  DailyStats? bestProteinDay;
+  var maxProtein = 0.0;
+  DateTime? firstLogDate;
+
+  for (final entry in logsByDate.entries) {
+    final date = entry.key;
+    final logs = entry.value;
+
+    final dayCalories = logs.fold<int>(0, (sum, log) => sum + (log.calories as int));
+    final dayProtein = logs.fold<double>(0, (sum, log) => sum + (log.protein as double));
+    final dayCarbs = logs.fold<double>(0, (sum, log) => sum + (log.carbs as double));
+    final dayFat = logs.fold<double>(0, (sum, log) => sum + (log.fat as double));
+
+    totalCalories += dayCalories;
+    totalProtein += dayProtein;
+    totalCarbs += dayCarbs;
+    totalFat += dayFat;
+
+    final dayStats = DailyStats(
+      date: date,
+      calories: dayCalories,
+      protein: dayProtein,
+      carbs: dayCarbs,
+      fat: dayFat,
+      calorieTarget: settings.calorieTarget,
+      proteinTarget: settings.proteinTarget,
+      carbsTarget: settings.carbsTarget,
+      fatTarget: settings.fatTarget,
+      logCount: logs.length,
+    );
+
+    if (dayStats.isPerfectDay) {
+      perfectDays++;
+    }
+
+    if (dayProtein > maxProtein) {
+      maxProtein = dayProtein;
+      bestProteinDay = dayStats;
+    }
+
+    if (firstLogDate == null || date.isBefore(firstLogDate)) {
+      firstLogDate = date;
+    }
+  }
+
+  // Calculate consistency (logged days / total days since first log)
+  final now = DateTime.now();
+  final daysSinceFirstLog = firstLogDate != null
+      ? now.difference(firstLogDate).inDays + 1
+      : 0;
+  final consistencyRate = daysSinceFirstLog > 0
+      ? (totalLoggedDays / daysSinceFirstLog * 100)
+      : 0.0;
+
+  return AllTimeStats(
+    totalLoggedDays: totalLoggedDays,
+    totalLogs: totalLogs,
+    avgCalories: totalLoggedDays > 0 ? (totalCalories / totalLoggedDays).round() : 0,
+    avgProtein: totalLoggedDays > 0 ? totalProtein / totalLoggedDays : 0,
+    avgCarbs: totalLoggedDays > 0 ? totalCarbs / totalLoggedDays : 0,
+    avgFat: totalLoggedDays > 0 ? totalFat / totalLoggedDays : 0,
+    perfectDays: perfectDays,
+    consistencyRate: consistencyRate,
+    firstLogDate: firstLogDate,
+    bestProteinDay: bestProteinDay,
+  );
 });

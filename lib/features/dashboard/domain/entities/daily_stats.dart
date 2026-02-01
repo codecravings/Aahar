@@ -175,3 +175,161 @@ class WeeklyStats extends Equatable {
         loggedDays,
       ];
 }
+
+/// Monthly statistics for analytics
+class MonthlyStats extends Equatable {
+  final DateTime monthStart;
+  final List<DailyStats> dailyStats;
+  final int avgCalories;
+  final double avgProtein;
+  final double avgCarbs;
+  final double avgFat;
+  final int perfectDays;
+  final int loggedDays;
+  final int totalDays;
+  final double consistencyRate;
+  final DailyStats? bestProteinDay;
+  final int totalCalories;
+  final double totalProtein;
+
+  const MonthlyStats({
+    required this.monthStart,
+    required this.dailyStats,
+    required this.avgCalories,
+    required this.avgProtein,
+    required this.avgCarbs,
+    required this.avgFat,
+    required this.perfectDays,
+    required this.loggedDays,
+    required this.totalDays,
+    required this.consistencyRate,
+    this.bestProteinDay,
+    required this.totalCalories,
+    required this.totalProtein,
+  });
+
+  factory MonthlyStats.fromDailyStats(List<DailyStats> stats, int totalDays) {
+    if (stats.isEmpty) {
+      return MonthlyStats(
+        monthStart: DateTime.now(),
+        dailyStats: [],
+        avgCalories: 0,
+        avgProtein: 0,
+        avgCarbs: 0,
+        avgFat: 0,
+        perfectDays: 0,
+        loggedDays: 0,
+        totalDays: totalDays,
+        consistencyRate: 0,
+        bestProteinDay: null,
+        totalCalories: 0,
+        totalProtein: 0,
+      );
+    }
+
+    final loggedDays = stats.where((s) => s.hasLogs).length;
+    final divisor = loggedDays > 0 ? loggedDays : 1;
+
+    final totalCalories = stats.fold<int>(0, (sum, s) => sum + s.calories);
+    final totalProtein = stats.fold<double>(0, (sum, s) => sum + s.protein);
+
+    // Find best protein day
+    DailyStats? bestProteinDay;
+    double maxProtein = 0;
+    for (final stat in stats) {
+      if (stat.hasLogs && stat.protein > maxProtein) {
+        maxProtein = stat.protein;
+        bestProteinDay = stat;
+      }
+    }
+
+    return MonthlyStats(
+      monthStart: stats.isNotEmpty ? stats.first.date : DateTime.now(),
+      dailyStats: stats,
+      avgCalories: (totalCalories / divisor).round(),
+      avgProtein: totalProtein / divisor,
+      avgCarbs: stats.fold<double>(0, (sum, s) => sum + s.carbs) / divisor,
+      avgFat: stats.fold<double>(0, (sum, s) => sum + s.fat) / divisor,
+      perfectDays: stats.where((s) => s.isPerfectDay).length,
+      loggedDays: loggedDays,
+      totalDays: totalDays,
+      consistencyRate: totalDays > 0 ? (loggedDays / totalDays * 100) : 0,
+      bestProteinDay: bestProteinDay,
+      totalCalories: totalCalories,
+      totalProtein: totalProtein,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        monthStart,
+        dailyStats,
+        avgCalories,
+        avgProtein,
+        avgCarbs,
+        avgFat,
+        perfectDays,
+        loggedDays,
+        totalDays,
+        consistencyRate,
+        bestProteinDay,
+        totalCalories,
+        totalProtein,
+      ];
+}
+
+/// All-time statistics
+class AllTimeStats extends Equatable {
+  final int totalLoggedDays;
+  final int totalLogs;
+  final int avgCalories;
+  final double avgProtein;
+  final double avgCarbs;
+  final double avgFat;
+  final int perfectDays;
+  final double consistencyRate;
+  final DateTime? firstLogDate;
+  final DailyStats? bestProteinDay;
+
+  const AllTimeStats({
+    required this.totalLoggedDays,
+    required this.totalLogs,
+    required this.avgCalories,
+    required this.avgProtein,
+    required this.avgCarbs,
+    required this.avgFat,
+    required this.perfectDays,
+    required this.consistencyRate,
+    this.firstLogDate,
+    this.bestProteinDay,
+  });
+
+  factory AllTimeStats.empty() {
+    return const AllTimeStats(
+      totalLoggedDays: 0,
+      totalLogs: 0,
+      avgCalories: 0,
+      avgProtein: 0,
+      avgCarbs: 0,
+      avgFat: 0,
+      perfectDays: 0,
+      consistencyRate: 0,
+      firstLogDate: null,
+      bestProteinDay: null,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        totalLoggedDays,
+        totalLogs,
+        avgCalories,
+        avgProtein,
+        avgCarbs,
+        avgFat,
+        perfectDays,
+        consistencyRate,
+        firstLogDate,
+        bestProteinDay,
+      ];
+}
