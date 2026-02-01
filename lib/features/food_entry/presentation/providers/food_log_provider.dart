@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
-import '../../../../core/constants/app_constants.dart';
 import '../../../../services/database/database_service.dart';
 import '../../domain/entities/food_log.dart';
 import '../../domain/entities/custom_quick_add.dart';
@@ -105,6 +104,40 @@ final foodLogsByDateProvider = Provider.family<List<FoodLog>, DateTime>((ref, da
   final repository = ref.watch(foodLogRepositoryProvider);
   return repository.getFoodLogsForDate(date);
 });
+
+/// Provider for yesterday's food logs
+final yesterdaysFoodLogsProvider = StateNotifierProvider<YesterdaysFoodLogsNotifier, List<FoodLog>>((ref) {
+  final repository = ref.watch(foodLogRepositoryProvider);
+  return YesterdaysFoodLogsNotifier(repository);
+});
+
+/// State notifier for yesterday's food logs
+class YesterdaysFoodLogsNotifier extends StateNotifier<List<FoodLog>> {
+  final FoodLogRepository _repository;
+
+  YesterdaysFoodLogsNotifier(this._repository) : super([]) {
+    _loadYesterdaysLogs();
+  }
+
+  void _loadYesterdaysLogs() {
+    final yesterday = DateTime.now().subtract(const Duration(days: 1));
+    state = _repository.getFoodLogsForDate(yesterday);
+  }
+
+  Future<void> updateFoodLog(FoodLog log) async {
+    await _repository.updateFoodLog(log);
+    _loadYesterdaysLogs();
+  }
+
+  Future<void> deleteFoodLog(String id) async {
+    await _repository.deleteFoodLog(id);
+    _loadYesterdaysLogs();
+  }
+
+  void refresh() {
+    _loadYesterdaysLogs();
+  }
+}
 
 /// Provider for today's total macros
 final todaysMacrosProvider = Provider<TodaysMacros>((ref) {
