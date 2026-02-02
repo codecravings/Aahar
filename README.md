@@ -184,9 +184,7 @@ GEMINI_API_KEY=your_gemini_key_here
 OPENAI_API_KEY=your_openai_key_here
 ```
 
-Get your keys from:
-* **Gemini:** [Google AI Studio](https://aistudio.google.com/apikey) — Free tier available
-* **OpenAI:** [OpenAI Platform](https://platform.openai.com/api-keys) — Paid API
+
 
 Yes it's free (Gemini).
 Use it wisely.
